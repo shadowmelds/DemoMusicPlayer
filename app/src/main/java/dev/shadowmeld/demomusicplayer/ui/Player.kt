@@ -1,5 +1,6 @@
 package dev.shadowmeld.demomusicplayer.ui
 
+import android.graphics.Bitmap
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -7,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
@@ -14,6 +16,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -28,6 +31,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import coil.compose.rememberImagePainter
 import com.example.myapplication.R
 import com.example.myapplication.logger
 import com.google.accompanist.glide.rememberGlidePainter
@@ -60,10 +64,15 @@ private fun NowPlayerScreen(
     ModalBottomSheetLayout(
         sheetState = sheetState,
         sheetContent = {
-            BottomSheetContent(viewModel, scope, sheetState)
+            BottomSheetContent(
+                modifier = Modifier.padding(top = 16.dp, bottom = 16.dp),
+                viewModel,
+                scope,
+                sheetState
+            )
         },
         sheetShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        sheetBackgroundColor = colorResource(id = R.color.color_primary),
+        sheetBackgroundColor = colorResource(id = R.color.white),
     ) {
         MainScreen(scope = scope, state = sheetState, viewModel = viewModel)
     }
@@ -339,6 +348,7 @@ private fun MainScreen(
 @ExperimentalMaterialApi
 @Composable
 fun BottomSheetContent(
+    modifier: Modifier,
     viewModel: MainViewModel? = null,
     scope: CoroutineScope,
     state: ModalBottomSheetState
@@ -349,13 +359,15 @@ fun BottomSheetContent(
     val list = viewModel?.getMusicInfo()
 
     list?.let {
-        LazyColumn {
+        LazyColumn(
+            modifier = modifier
+        ) {
             // Add a single item
-            items(it) { musicInfo ->
+            itemsIndexed(it) { index, musicInfo ->
                 BottomSheetListItem(
-                    position = "0",
-                    icon = R.drawable.ic_round_shuffle,
-                    title = musicInfo.title,
+                    position = index.toString(),
+                    cover = musicInfo.musicArtist,
+                    title = musicInfo.musicName,
                     onItemClick = { title ->
 
                         scope.launch {
@@ -374,27 +386,25 @@ fun BottomSheetContent(
 }
 
 @Composable
-fun BottomSheetListItem(position: String, icon: Int, title: String, onItemClick: (String) -> Unit) {
+fun BottomSheetListItem(position: String, cover: Bitmap?, title: String, onItemClick: (String) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = {
                 onItemClick(title)
             })
-            .height(55.dp)
+            .height(56.dp)
             .background(color = colorResource(id = R.color.white))
-            .padding(start = 15.dp), verticalAlignment = Alignment.CenterVertically
+            .padding(start = 16.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = position)
-        Image(painter = painterResource(id = icon), contentDescription = "Music")
+        Text(modifier = Modifier.padding(6.dp),text = position)
+        Image(modifier = Modifier
+            .padding(6.dp)
+            .clip(RoundedCornerShape(8.dp)),
+            painter = rememberImagePainter(cover), contentDescription = "Music")
         Spacer(modifier = Modifier.width(20.dp))
         Text(text = title)
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-fun BottomSheetListItemPreview() {
-    BottomSheetListItem(position = "0",icon = R.drawable.ic_outline_playlist_play_24, title = "Share", onItemClick = {})
-}
 
