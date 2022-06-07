@@ -6,7 +6,10 @@ import java.io.FileDescriptor
 
 data class MediaItemData(
     val uri: Uri,
-    val musicName: String,
-    val musicArtist: Bitmap?,
-    val musicDuration: Int
+    val source: Int,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val image: Bitmap?,
+    val duration: Int
 )

@@ -25,25 +25,27 @@ class DefaultMusicInfoRepository(
     }
 
     override fun getMusicInfo() {
-        context?.resources?.openRawResourceFd(R.raw.a1)?.fileDescriptor
 
         result.value = mutableListOf<MediaItemData>().apply {
-            context?.let { add(musicInfo(it, Uri.parse("android.resource://"+ it.packageName +"/raw/a1")))}
-            context?.let { add(musicInfo(it, Uri.parse("android.resource://"+ it.packageName +"/raw/a2")))}
-            context?.let { add(musicInfo(it, Uri.parse("android.resource://"+ it.packageName +"/raw/a3")))}
+            context?.let { add(musicInfo(it, Uri.parse("android.resource://"+ it.packageName +"/raw/a1"), R.raw.a1))}
+            context?.let { add(musicInfo(it, Uri.parse("android.resource://"+ it.packageName +"/raw/a2"), R.raw.a2))}
+            context?.let { add(musicInfo(it, Uri.parse("android.resource://"+ it.packageName +"/raw/a3"), R.raw.a3))}
         }
     }
 
     override val observerResult: MutableLiveData<List<MediaItemData>>
         get() = result
 
-    private fun musicInfo(context: Context, media: Uri): MediaItemData {
+    private fun musicInfo(context: Context, media: Uri, resource: Int): MediaItemData {
         val mediaMetaData = MediaMetadataRetriever()
         mediaMetaData.setDataSource(context, media)
         val cover = mediaMetaData.embeddedPicture
         return MediaItemData(
             media,
-            mediaMetaData.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: "没有标题",
+            resource,
+            mediaMetaData.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: "没有标题信息",
+            mediaMetaData.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "没有音乐人信息",
+            mediaMetaData.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: "没有专辑信息",
             cover?.size?.let { BitmapFactory.decodeByteArray(cover, 0, it) },
             mediaMetaData.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toInt() ?: 0,
         )

@@ -21,7 +21,10 @@ import com.example.myapplication.R
 import com.example.myapplication.logger
 import com.google.android.exoplayer2.*
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
+import com.google.android.exoplayer2.upstream.RawResourceDataSource
 import com.google.android.exoplayer2.util.EventLogger
+import dev.shadowmeld.demomusicplayer.data.DefaultMusicInfoRepository
+import dev.shadowmeld.demomusicplayer.data.MusicRepository
 
 
 class MediaPlaybackService : MediaBrowserServiceCompat() {
@@ -36,9 +39,13 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
 
     private var exoPlayer: ExoPlayer? = null
 
+    private lateinit var musicInfoRepository: MusicRepository
     override fun onCreate() {
         super.onCreate()
 
+        musicInfoRepository = DefaultMusicInfoRepository(this)
+        musicInfoRepository.getMusicInfo()
+        musicEntityList = musicInfoRepository.observerResult.value
         mediaSession = MediaSessionCompat(
             baseContext,
             MediaPlaybackService::class.java.simpleName
@@ -94,22 +101,23 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
         }
         val mediaItems = mutableListOf<MediaBrowserCompat.MediaItem>()
 
-        val musicEntityList = getMusicEntityList()
-        for (i in musicEntityList.indices) {
-            val musicEntity = musicEntityList[i]
-            val metadataCompat: MediaMetadataCompat = buildMediaMetadata(musicEntity)
-            if (i == 0) {
-                mediaSession!!.setMetadata(metadataCompat)
-            }
-            mediaItems.add(
-                MediaBrowserCompat.MediaItem(
-                    metadataCompat.description,
-                    MediaBrowserCompat.MediaItem.FLAG_BROWSABLE
+        musicEntityList?.let {
+            for (i in it.indices) {
+                val musicEntity = it[i]
+                val metadataCompat: MediaMetadataCompat = buildMediaMetadata(musicEntity)
+                if (i == 0) {
+                    mediaSession!!.setMetadata(metadataCompat)
+                }
+                mediaItems.add(
+                    MediaBrowserCompat.MediaItem(
+                        metadataCompat.description,
+                        MediaBrowserCompat.MediaItem.FLAG_BROWSABLE
+                    )
                 )
-            )
-            exoPlayer!!.addMediaItem(MediaItem.fromUri(musicEntity.source))
+                exoPlayer!!.addMediaItem(MediaItem.fromUri(RawResourceDataSource.buildRawResourceUri(musicEntity.source)))
+            }
+            logger("走到这一步 ${mediaItems.size}")
         }
-        logger("走到这一步 ${mediaItems.size}")
         result.sendResult(mediaItems)
     }
 
@@ -285,47 +293,65 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
             super.onSeekTo(pos)
             exoPlayer?.seekTo(pos)
         }
+
+
     }
 
-    private fun getMusicEntityList(): List<MusicEntity> {
+//    private fun getMusicEntityList(): List<MusicEntity> {
+//
+//        return mutableListOf<MusicEntity>().apply {
+//            add(
+//                MusicEntity(
+//                id = "wake_up_02",
+//                title = "Geisha",
+//                album = "Wake Up",
+//                artist = "Media Right Productions",
+//                genre = "Electronic",
+//                source = "https://storage.googleapis.com/uamp/The_Kyoto_Connection_-_Wake_Up/02_-_Geisha.mp3",
+//                image = "https://storage.googleapis.com/uamp/The_Kyoto_Connection_-_Wake_Up/art.jpg",
+//                trackNumber = 2,
+//                totalTrackCount = 13,
+//                duration = 267,
+//                site = "http://freemusicarchive.org/music/The_Kyoto_Connection/Wake_Up_1957/"
+//            )
+//            )
+//        }
+//    }
 
-        return mutableListOf<MusicEntity>().apply {
-            add(
-                MusicEntity(
-                id = "wake_up_02",
-                title = "Geisha",
-                album = "Wake Up",
-                artist = "Media Right Productions",
-                genre = "Electronic",
-                source = "https://storage.googleapis.com/uamp/The_Kyoto_Connection_-_Wake_Up/02_-_Geisha.mp3",
-                image = "https://storage.googleapis.com/uamp/The_Kyoto_Connection_-_Wake_Up/art.jpg",
-                trackNumber = 2,
-                totalTrackCount = 13,
-                duration = 267,
-                site = "http://freemusicarchive.org/music/The_Kyoto_Connection/Wake_Up_1957/"
-            )
-            )
+//    private fun buildMediaMetadata(musicEntity: MusicEntity): MediaMetadataCompat {
+//        return MediaMetadataCompat.Builder()
+//            .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, musicEntity.id)
+//            .putString("__SOURCE__", musicEntity.source)
+//            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, musicEntity.album)
+//            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, musicEntity.artist)
+//            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, musicEntity.duration.toLong())
+//            .putString(MediaMetadataCompat.METADATA_KEY_GENRE, musicEntity.genre)
+//            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, musicEntity.image)
+//            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, musicEntity.title)
+//            .putLong(
+//                MediaMetadataCompat.METADATA_KEY_TRACK_NUMBER,
+//                musicEntity.trackNumber.toLong()
+//            )
+//            .putLong(
+//                MediaMetadataCompat.METADATA_KEY_NUM_TRACKS,
+//                musicEntity.totalTrackCount.toLong()
+//            )
+//            .build()
+//    }
+
+    private var musicEntityList: List<MediaItemData>? = null
+        get() = field
+        set(value) {
+            field = value
         }
-    }
 
-    private fun buildMediaMetadata(musicEntity: MusicEntity): MediaMetadataCompat {
+    private fun buildMediaMetadata(mediaItemData: MediaItemData): MediaMetadataCompat {
         return MediaMetadataCompat.Builder()
-            .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, musicEntity.id)
-            .putString("__SOURCE__", musicEntity.source)
-            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, musicEntity.album)
-            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, musicEntity.artist)
-            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, musicEntity.duration.toLong())
-            .putString(MediaMetadataCompat.METADATA_KEY_GENRE, musicEntity.genre)
-            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, musicEntity.image)
-            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, musicEntity.title)
-            .putLong(
-                MediaMetadataCompat.METADATA_KEY_TRACK_NUMBER,
-                musicEntity.trackNumber.toLong()
-            )
-            .putLong(
-                MediaMetadataCompat.METADATA_KEY_NUM_TRACKS,
-                musicEntity.totalTrackCount.toLong()
-            )
+            .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, mediaItemData.source.toString())
+            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, mediaItemData.album)
+            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, mediaItemData.artist)
+            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, mediaItemData.duration.toLong())
+            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, mediaItemData.title)
             .build()
     }
 

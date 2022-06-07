@@ -34,4 +34,10 @@ class MainViewModel : ViewModel() {
         musicInfoRepository.getMusicInfo()
         return musicInfoRepository.observerResult.value
     }
+
+    var finishCurrentActivity: (() -> Unit)? = null
+
+    fun finishCurrentActivity() {
+        finishCurrentActivity?.invoke()
+    }
 }

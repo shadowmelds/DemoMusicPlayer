@@ -24,6 +24,7 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ChainStyle
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
@@ -35,6 +36,7 @@ import coil.compose.rememberImagePainter
 import com.example.myapplication.R
 import com.example.myapplication.logger
 import com.google.accompanist.glide.rememberGlidePainter
+import dev.shadowmeld.demomusicplayer.media.MediaItemData
 import dev.shadowmeld.viewdaydream.ui.now_player.SliderWithLabel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -105,7 +107,9 @@ private fun MainScreen(
                 title = {
                 },
                 navigationIcon = {
-                    IconButton(onClick = {}) {
+                    IconButton(onClick = {
+                        viewModel?.finishCurrentActivity()
+                    }) {
                         Icon(imageVector = Icons.Rounded.ArrowBack, contentDescription =
                         "Back"
                         )
@@ -366,8 +370,7 @@ fun BottomSheetContent(
             itemsIndexed(it) { index, musicInfo ->
                 BottomSheetListItem(
                     position = index.toString(),
-                    cover = musicInfo.musicArtist,
-                    title = musicInfo.musicName,
+                    musicInfo = musicInfo,
                     onItemClick = { title ->
 
                         scope.launch {
@@ -386,12 +389,12 @@ fun BottomSheetContent(
 }
 
 @Composable
-fun BottomSheetListItem(position: String, cover: Bitmap?, title: String, onItemClick: (String) -> Unit) {
+fun BottomSheetListItem(position: String, musicInfo: MediaItemData, onItemClick: (String) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = {
-                onItemClick(title)
+                onItemClick(musicInfo.title)
             })
             .height(56.dp)
             .background(color = colorResource(id = R.color.white))
@@ -401,9 +404,18 @@ fun BottomSheetListItem(position: String, cover: Bitmap?, title: String, onItemC
         Image(modifier = Modifier
             .padding(6.dp)
             .clip(RoundedCornerShape(8.dp)),
-            painter = rememberImagePainter(cover), contentDescription = "Music")
+            painter = rememberImagePainter(musicInfo.image), contentDescription = "Music")
         Spacer(modifier = Modifier.width(20.dp))
-        Text(text = title)
+
+        Column() {
+            Text(
+                text = musicInfo.title,
+            )
+            Text(
+                text = musicInfo.artist,
+                fontSize = 12.sp
+            )
+        }
     }
 }
 

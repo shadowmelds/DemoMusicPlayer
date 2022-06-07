@@ -29,6 +29,10 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
 
         setContentView(binding.root)
+
+        viewModel.finishCurrentActivity = {
+            finish()
+        }
         initComposeView()
 
         // 初始化MediaBrowser
