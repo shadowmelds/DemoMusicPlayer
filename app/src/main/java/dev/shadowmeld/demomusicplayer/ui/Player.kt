@@ -1,6 +1,7 @@
 package dev.shadowmeld.demomusicplayer.ui
 
 import android.graphics.Bitmap
+import android.support.v4.media.session.PlaybackStateCompat
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -33,9 +34,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberImagePainter
-import com.example.myapplication.R
-import com.example.myapplication.logger
+import dev.shadowmeld.demomusicplayer.R
+import dev.shadowmeld.demomusicplayer.util.logger
 import com.google.accompanist.glide.rememberGlidePainter
+import dev.shadowmeld.demomusicplayer.media.Media
 import dev.shadowmeld.demomusicplayer.media.MediaItemData
 import dev.shadowmeld.viewdaydream.ui.now_player.SliderWithLabel
 import kotlinx.coroutines.CoroutineScope
@@ -95,9 +97,6 @@ private fun MainScreen(
     navController: NavController? = null,
     viewModel: MainViewModel? = null
 ) {
-    val musicData = remember {
-        mutableStateOf<LocalMusicInfo?>(null)
-    }
 
     var sliderPosition by remember { mutableStateOf(0f) }
 
@@ -138,8 +137,7 @@ private fun MainScreen(
         ) {
 
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
+                modifier = Modifier.aspectRatio(1f)
                     .padding(36.dp, 8.dp, 36.dp, 8.dp)
                     .padding(0.dp, 36.dp, 0.dp, 0.dp),
                 shape = RoundedCornerShape(24.dp),
@@ -149,8 +147,7 @@ private fun MainScreen(
                     painter = rememberGlidePainter(R.mipmap.ic_launcher),
                     contentDescription = "Contact profile picture",
                     contentScale = ContentScale.FillWidth,
-                    modifier = Modifier
-                        .fillMaxWidth()
+                    modifier = Modifier.aspectRatio(1f)
                 )
             } // 封面
 
@@ -171,11 +168,11 @@ private fun MainScreen(
                         }
                 ) {
                     Text(
-                        text = musicData.value?.musicName ?: "Music Name",
+                        text = Media.currentMediaInfo?.title ?: "Music Name",
                         style = MaterialTheme.typography.h6
                     )
                     Text(
-                        text = musicData.value?.musicArtist ?: "Music Artist",
+                        text = Media.currentMediaInfo?.artist ?: "Music Artist",
                         style = MaterialTheme.typography.body2
                     )
                 }
@@ -240,7 +237,9 @@ private fun MainScreen(
                 }
 
                 IconButton(
-                    onClick = {},
+                    onClick = {
+                        viewModel?.playbackAction?.invoke(PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS)
+                    },
                     modifier = Modifier
                         .constrainAs(previous) {
                             start.linkTo(repeat.end)
@@ -251,9 +250,9 @@ private fun MainScreen(
 
                 IconButton(
                     onClick = {
-                        logger("viewModel == ${viewModel == null} | playButton == ${viewModel?.playButton == null}")
+                        logger("viewModel == ${viewModel == null} | playButton == ${viewModel?.playbackAction == null}")
 
-                        viewModel?.playButton?.invoke()
+                        viewModel?.playbackAction?.invoke(PlaybackStateCompat.ACTION_PLAY)
                     },
                     modifier = Modifier
                         .constrainAs(play) {
@@ -264,7 +263,9 @@ private fun MainScreen(
                 }
 
                 IconButton(
-                    onClick = {},
+                    onClick = {
+                        viewModel?.playbackAction?.invoke(PlaybackStateCompat.ACTION_SKIP_TO_NEXT)
+                    },
                     modifier = Modifier
                         .constrainAs(next) {
                             start.linkTo(play.end)
@@ -367,22 +368,26 @@ fun BottomSheetContent(
             modifier = modifier
         ) {
             // Add a single item
-            itemsIndexed(it) { index, musicInfo ->
-                BottomSheetListItem(
-                    position = index.toString(),
-                    musicInfo = musicInfo,
-                    onItemClick = { title ->
+            item {
+                for ((index, musicEntity) in it.entries.withIndex()) {
+                    BottomSheetListItem(
+                        position = index.toString(),
+                        musicInfo = musicEntity.value,
+                        onItemClick = { title ->
 
-                        scope.launch {
-                            state.hide()
-                        }
-                        Toast.makeText(
-                            context,
-                            title,
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    })
-            }
+                            scope.launch {
+                                state.hide()
+                            }
+                            Toast.makeText(
+                                context,
+                                title,
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        })
+                }
+                }
+
+
         }
     }
 

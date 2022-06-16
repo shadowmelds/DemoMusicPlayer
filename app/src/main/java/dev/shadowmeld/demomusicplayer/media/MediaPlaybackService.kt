@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -17,14 +18,17 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.media.MediaBrowserServiceCompat
 import androidx.media.session.MediaButtonReceiver
-import com.example.myapplication.R
-import com.example.myapplication.logger
-import com.google.android.exoplayer2.*
+import com.google.android.exoplayer2.ExoPlayer
+import com.google.android.exoplayer2.MediaItem
+import com.google.android.exoplayer2.PlaybackException
+import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
 import com.google.android.exoplayer2.upstream.RawResourceDataSource
 import com.google.android.exoplayer2.util.EventLogger
+import dev.shadowmeld.demomusicplayer.R
 import dev.shadowmeld.demomusicplayer.data.DefaultMusicInfoRepository
 import dev.shadowmeld.demomusicplayer.data.MusicRepository
+import dev.shadowmeld.demomusicplayer.util.logger
 
 
 class MediaPlaybackService : MediaBrowserServiceCompat() {
@@ -33,20 +37,40 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
         const val NOTIFICATION_CHANNEL_ID = "Daydream Music"
         const val MEDIA_ROOT_ID = "media_root_id"
         const val EMPTY_MEDIA_ROOT_ID = "empty_root_id"
+        const val ACTION_FAVORITE: Long = 1 shl 111
     }
 
-    private var mediaSession: MediaSessionCompat? = null
+    /**
+     * EXO播放器
+     */
+    private lateinit var exoPlayer: ExoPlayer
 
-    private var exoPlayer: ExoPlayer? = null
-
+    /**
+     * 数据源
+     */
     private lateinit var musicInfoRepository: MusicRepository
+
     override fun onCreate() {
         super.onCreate()
 
+        // 获取播放列表
         musicInfoRepository = DefaultMusicInfoRepository(this)
         musicInfoRepository.getMusicInfo()
-        musicEntityList = musicInfoRepository.observerResult.value
-        mediaSession = MediaSessionCompat(
+        Media.playList = musicInfoRepository.observerResult.value
+
+        // 初始化 MediaSession
+        initMediaSession()
+        // 初始化 ExoPlayer
+        exoPlayer = ExoPlayer.Builder(baseContext).build()
+        // 给ExoPlayer添加监听
+        initExoPlayerListener(exoPlayer)
+    }
+
+    /**
+     * 初始化 MediaSession
+     */
+    private fun initMediaSession() {
+        Media.session = MediaSessionCompat(
             baseContext,
             MediaPlaybackService::class.java.simpleName
         ).apply {
@@ -70,15 +94,15 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
                     logger("state = ${state?.state}")
                     if (state?.state == PlaybackStateCompat.STATE_PLAYING || state?.state == PlaybackStateCompat.STATE_PAUSED || state?.state == PlaybackStateCompat.STATE_NONE) {
                         logger("启动通知")
+
                         startForeground(1, createNotification(baseContext, NOTIFICATION_CHANNEL_ID))
                     }
                 }
+
+
             })
             setSessionToken(sessionToken)
         }
-        exoPlayer = ExoPlayer.Builder(baseContext).build()
-
-        initExoPlayerListener(exoPlayer!!)
     }
 
     override fun onGetRoot(
@@ -101,40 +125,36 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
         }
         val mediaItems = mutableListOf<MediaBrowserCompat.MediaItem>()
 
-        musicEntityList?.let {
-            for (i in it.indices) {
-                val musicEntity = it[i]
+        Media.playList?.let {
+            for (musicEntity in it.entries) {
                 val metadataCompat: MediaMetadataCompat = buildMediaMetadata(musicEntity)
-                if (i == 0) {
-                    mediaSession!!.setMetadata(metadataCompat)
-                }
+                Media.session!!.setMetadata(metadataCompat)
                 mediaItems.add(
                     MediaBrowserCompat.MediaItem(
                         metadataCompat.description,
                         MediaBrowserCompat.MediaItem.FLAG_BROWSABLE
                     )
                 )
-                exoPlayer!!.addMediaItem(MediaItem.fromUri(RawResourceDataSource.buildRawResourceUri(musicEntity.source)))
+                exoPlayer.addMediaItem(MediaItem.fromUri(RawResourceDataSource.buildRawResourceUri(musicEntity.value.source)))
             }
             logger("走到这一步 ${mediaItems.size}")
         }
         result.sendResult(mediaItems)
     }
 
-    private fun createNotificationChannel(channelId: String, name: String) {
-        ContextCompat.getSystemService(this, NotificationManager::class.java)?.apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channel = NotificationChannel(channelId, name, NotificationManager.IMPORTANCE_LOW)
-                createNotificationChannel(channel)
-            }
-        }
+    /**
+     * BroadcastReceiver 会将 Intent 转发给您的服务，键码转换为相应的会话回调方法
+     */
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        MediaButtonReceiver.handleIntent(Media.session, intent)
+        return super.onStartCommand(intent, flags, startId)
     }
 
     fun createNotification(context: Context, channelId: String): Notification {
 
         createNotificationChannel(channelId, "Daydream Player")
 
-        val controller = mediaSession!!.controller
+        val controller = Media.session!!.controller
         val mediaMetadata = controller.metadata
         val description = mediaMetadata.description
 
@@ -143,57 +163,56 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
             setContentText(description?.subtitle)
             setSubText(description?.description)
             setLargeIcon(description?.iconBitmap)
-            setContentIntent(mediaSession?.controller?.sessionActivity)
-            setDeleteIntent(
-                MediaButtonReceiver.buildMediaButtonPendingIntent(
-                    context,
-                    PlaybackStateCompat.ACTION_STOP
-                )
-            )
+            setContentIntent(Media.session?.controller?.sessionActivity)
             setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             setSmallIcon(R.drawable.ic_launcher_foreground)
             color = Color.BLACK
             addAction(
-                R.drawable.ic_baseline_skip_previous_24,
-                "Forward",
-                MediaButtonReceiver.buildMediaButtonPendingIntent(
-                    context,
-                    PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
+                NotificationCompat.Action(
+                    R.drawable.ic_baseline_skip_previous_24,
+                    "Forward",
+                    MediaButtonReceiver.buildMediaButtonPendingIntent(
+                        context,
+                        PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
+                    )
                 )
-            )
 
-            // Add a pause button
+            )
             addAction(
                 NotificationCompat.Action(
-                    R.drawable.ic_baseline_pause_24,
-                    "暂停",
+                    if (exoPlayer.isPlaying) R.drawable.ic_baseline_pause_24
+                    else R.drawable.ic_baseline_play_arrow_24,
+                    if (exoPlayer.isPlaying) "Pause" else "Play",
                     MediaButtonReceiver.buildMediaButtonPendingIntent(
-                        applicationContext,
+                        context,
                         PlaybackStateCompat.ACTION_PLAY_PAUSE
                     )
                 )
             )
-//            addAction(
-//                if (exoPlayer?.isPlayingState == true) R.drawable.ic_baseline_pause_24
-//                else R.drawable.ic_baseline_play_arrow_24,
-//                if (exoPlayer?.isPlayingState == true) "Pause" else "Play",
-//                MediaButtonReceiver.buildMediaButtonPendingIntent(
-//                    context,
-//                    PlaybackStateCompat.ACTION_PLAY_PAUSE
-//                )
-//            )
             addAction(
-                R.drawable.ic_baseline_skip_next_24,
-                "Next",
-                MediaButtonReceiver.buildMediaButtonPendingIntent(
-                    context,
-                    PlaybackStateCompat.ACTION_SKIP_TO_NEXT
+                NotificationCompat.Action(
+                    R.drawable.ic_baseline_skip_next_24,
+                    "Next",
+                    MediaButtonReceiver.buildMediaButtonPendingIntent(
+                        context,
+                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT
+                    )
+                )
+            )
+            addAction(
+                NotificationCompat.Action(
+                    R.drawable.ic_round_favorite_border_24,
+                    "Favorite",
+                    MediaButtonReceiver.buildMediaButtonPendingIntent(
+                        context,
+                        ACTION_FAVORITE
+                    )
                 )
             )
             setStyle(
                 androidx.media.app.NotificationCompat.MediaStyle()
-                    .setMediaSession(mediaSession?.sessionToken)
-                    .setShowActionsInCompactView(1)
+                    .setMediaSession(Media.session?.sessionToken)
+                    .setShowActionsInCompactView(0, 1, 2)
                     .setShowCancelButton(true)
                     .setCancelButtonIntent(
                         MediaButtonReceiver.buildMediaButtonPendingIntent(
@@ -203,6 +222,18 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
                     )
             )
         }.build()
+    }
+
+    /**
+     * 创建通知渠道
+     */
+    private fun createNotificationChannel(channelId: String, name: String) {
+        ContextCompat.getSystemService(this, NotificationManager::class.java)?.apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(channelId, name, NotificationManager.IMPORTANCE_LOW)
+                createNotificationChannel(channel)
+            }
+        }
     }
 
     private fun initExoPlayerListener(exoPlayer: ExoPlayer) {
@@ -245,109 +276,64 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
                 setPlaybackState(PlaybackStateCompat.STATE_ERROR)
             }
 
-            fun onPlayerError(error: ExoPlaybackException) {
-            }
-
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 Log.i("TAG", "onIsPlayingChanged: isPlaying=$isPlaying")
-                if (isPlaying) {
-                    setPlaybackState(PlaybackStateCompat.STATE_PLAYING)
-                } else {
-                    setPlaybackState(PlaybackStateCompat.STATE_PAUSED)
-                }
-            }
-
-            override fun onPositionDiscontinuity(reason: Int) {
-                Log.i("TAG", "onPositionDiscontinuity: reason=$reason")
             }
         })
         exoPlayer.addAnalyticsListener(EventLogger(DefaultTrackSelector()))
     }
 
     private fun setPlaybackState(playbackState: Int) {
-        val speed =
-            if (exoPlayer?.playbackParameters == null) 1f else exoPlayer!!.playbackParameters.speed
-        mediaSession!!.setPlaybackState(
+        val speed = exoPlayer.playbackParameters.speed
+        Media.session!!.setPlaybackState(
             PlaybackStateCompat.Builder()
-                .setState(playbackState, exoPlayer!!.currentPosition, speed).build()
+                .setState(playbackState, exoPlayer.currentPosition, speed).build()
         )
     }
 
     inner class MediaSessionCallback : MediaSessionCompat.Callback() {
 
         override fun onPlay() {
-            logger("MediaSessionCallback Play() 执行 exoPlayer = ${exoPlayer == null}")
+            logger("MediaSessionCallback Play() 执行")
             super.onPlay()
-            exoPlayer?.play()
-            exoPlayer?.prepare()
+            exoPlayer.play()
+            exoPlayer.prepare()
             //资源加载后立即播放
-            exoPlayer?.playWhenReady = true
+            exoPlayer.playWhenReady = true
+        }
+
+        override fun onSkipToNext() {
+            super.onSkipToNext()
+            logger("下一曲")
+            exoPlayer.seekToNextMediaItem()
+        }
+
+        override fun onSkipToPrevious() {
+            super.onSkipToPrevious()
+            logger("上一曲")
+            exoPlayer.seekToPreviousMediaItem()
         }
 
         override fun onPause() {
             super.onPause()
-            exoPlayer?.pause()
+            exoPlayer.pause()
         }
 
         override fun onSeekTo(pos: Long) {
             super.onSeekTo(pos)
-            exoPlayer?.seekTo(pos)
+            exoPlayer.seekTo(pos)
         }
-
-
     }
 
-//    private fun getMusicEntityList(): List<MusicEntity> {
-//
-//        return mutableListOf<MusicEntity>().apply {
-//            add(
-//                MusicEntity(
-//                id = "wake_up_02",
-//                title = "Geisha",
-//                album = "Wake Up",
-//                artist = "Media Right Productions",
-//                genre = "Electronic",
-//                source = "https://storage.googleapis.com/uamp/The_Kyoto_Connection_-_Wake_Up/02_-_Geisha.mp3",
-//                image = "https://storage.googleapis.com/uamp/The_Kyoto_Connection_-_Wake_Up/art.jpg",
-//                trackNumber = 2,
-//                totalTrackCount = 13,
-//                duration = 267,
-//                site = "http://freemusicarchive.org/music/The_Kyoto_Connection/Wake_Up_1957/"
-//            )
-//            )
-//        }
-//    }
+    /**
+     * 单曲数据 MediaItemData to MediaMetadataCompat
+     */
+    private fun buildMediaMetadata(musicEntity: Map.Entry<String, MediaItemData>): MediaMetadataCompat {
 
-//    private fun buildMediaMetadata(musicEntity: MusicEntity): MediaMetadataCompat {
-//        return MediaMetadataCompat.Builder()
-//            .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, musicEntity.id)
-//            .putString("__SOURCE__", musicEntity.source)
-//            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, musicEntity.album)
-//            .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, musicEntity.artist)
-//            .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, musicEntity.duration.toLong())
-//            .putString(MediaMetadataCompat.METADATA_KEY_GENRE, musicEntity.genre)
-//            .putString(MediaMetadataCompat.METADATA_KEY_ALBUM_ART_URI, musicEntity.image)
-//            .putString(MediaMetadataCompat.METADATA_KEY_TITLE, musicEntity.title)
-//            .putLong(
-//                MediaMetadataCompat.METADATA_KEY_TRACK_NUMBER,
-//                musicEntity.trackNumber.toLong()
-//            )
-//            .putLong(
-//                MediaMetadataCompat.METADATA_KEY_NUM_TRACKS,
-//                musicEntity.totalTrackCount.toLong()
-//            )
-//            .build()
-//    }
+        val mediaItemData = musicEntity.value
 
-    private var musicEntityList: List<MediaItemData>? = null
-        get() = field
-        set(value) {
-            field = value
-        }
-
-    private fun buildMediaMetadata(mediaItemData: MediaItemData): MediaMetadataCompat {
         return MediaMetadataCompat.Builder()
-            .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, mediaItemData.source.toString())
+            .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, musicEntity.key)
             .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, mediaItemData.album)
             .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, mediaItemData.artist)
             .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, mediaItemData.duration.toLong())

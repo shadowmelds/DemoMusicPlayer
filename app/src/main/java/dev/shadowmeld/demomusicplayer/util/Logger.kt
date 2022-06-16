@@ -1,4 +1,4 @@
-package com.example.myapplication
+package dev.shadowmeld.demomusicplayer.util
 
 import android.util.Log
 

@@ -1,6 +1,7 @@
 package dev.shadowmeld.demomusicplayer.ui
 
 import android.content.Context
+import android.support.v4.media.session.PlaybackStateCompat
 import androidx.lifecycle.ViewModel
 import dev.shadowmeld.demomusicplayer.data.DefaultMusicInfoRepository
 import dev.shadowmeld.demomusicplayer.data.MusicRepository
@@ -8,29 +9,21 @@ import dev.shadowmeld.demomusicplayer.media.MediaItemData
 
 class MainViewModel : ViewModel() {
 
-    var currentMusic: ((musicData: LocalMusicInfo) -> Unit)? = null
-
     private lateinit var musicInfoRepository: MusicRepository
 
     fun setMusicInfoRepository(context: Context) {
         musicInfoRepository = DefaultMusicInfoRepository(context)
     }
 
-    fun setUpdateCurrentMusic(
-        currentMusic: (musicData: LocalMusicInfo) -> Unit
-    ) {
-        this.currentMusic = currentMusic
-    }
-
-    var playButton: (() -> Unit)? = null
+    var playbackAction: ((Long) -> Unit)? = null
 
     fun setPlayCurrentMusic(
-        playButton: () -> Unit
+        playbackAction: (Long) -> Unit
     ) {
-        this.playButton = playButton
+        this.playbackAction = playbackAction
     }
 
-    fun getMusicInfo(): List<MediaItemData>? {
+    fun getMusicInfo(): Map<String, MediaItemData>? {
         musicInfoRepository.getMusicInfo()
         return musicInfoRepository.observerResult.value
     }
