@@ -42,7 +42,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         override fun onPlaybackStateChanged(state: PlaybackStateCompat?) {
-            Media.currentMediaState = state
+            logger("Activity播放状态改变：${state?.state}")
+            Media.currentMediaState = state?.state
         }
     }
 

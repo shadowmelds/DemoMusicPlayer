@@ -19,7 +19,7 @@ object Media {
     /**
      * 全局播放状态
      */
-    var currentMediaState: PlaybackStateCompat? by mutableStateOf(null)
+    var currentMediaState: Int? by mutableStateOf(null)
 
     /**
      * 媒体信息

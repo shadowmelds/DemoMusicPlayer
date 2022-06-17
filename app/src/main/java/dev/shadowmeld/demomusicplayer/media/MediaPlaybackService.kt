@@ -80,7 +80,6 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
                 PlaybackStateCompat.Builder().setActions(PlaybackStateCompat.ACTION_PLAY or
                         PlaybackStateCompat.ACTION_PLAY_PAUSE or
                         PlaybackStateCompat.ACTION_STOP or
-                        PlaybackStateCompat.ACTION_PLAY_PAUSE or
                         PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID or
                         PlaybackStateCompat.ACTION_PLAY_FROM_SEARCH or
                         PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
@@ -97,6 +96,9 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
 
                         startForeground(1, createNotification(baseContext, NOTIFICATION_CHANNEL_ID))
                     }
+
+                    logger("Service播放状态改变：${state?.state}")
+                    Media.currentMediaState = state?.state
                 }
 
 
@@ -180,12 +182,16 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
             )
             addAction(
                 NotificationCompat.Action(
-                    if (exoPlayer.isPlaying) R.drawable.ic_baseline_pause_24
+                    if (Media.currentMediaState == PlaybackStateCompat.STATE_PLAYING) R.drawable.ic_baseline_pause_24
                     else R.drawable.ic_baseline_play_arrow_24,
-                    if (exoPlayer.isPlaying) "Pause" else "Play",
-                    MediaButtonReceiver.buildMediaButtonPendingIntent(
+                    if (Media.currentMediaState == PlaybackStateCompat.STATE_PLAYING) "Pause" else "Play",
+                    if (Media.currentMediaState == PlaybackStateCompat.STATE_PLAYING) MediaButtonReceiver.buildMediaButtonPendingIntent(
                         context,
                         PlaybackStateCompat.ACTION_PLAY_PAUSE
+                    )
+                    else MediaButtonReceiver.buildMediaButtonPendingIntent(
+                        context,
+                        PlaybackStateCompat.ACTION_PLAY,
                     )
                 )
             )
@@ -278,6 +284,11 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 Log.i("TAG", "onIsPlayingChanged: isPlaying=$isPlaying")
+                if (isPlaying) {
+                    setPlaybackState(PlaybackStateCompat.STATE_PLAYING)
+                } else {
+                    setPlaybackState(PlaybackStateCompat.STATE_PAUSED)
+                }
             }
         })
         exoPlayer.addAnalyticsListener(EventLogger(DefaultTrackSelector()))
@@ -317,6 +328,7 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
         override fun onPause() {
             super.onPause()
             exoPlayer.pause()
+            logger("onPause ${Media.currentMediaState == PlaybackStateCompat.STATE_PLAYING}")
         }
 
         override fun onSeekTo(pos: Long) {

@@ -10,16 +10,13 @@ class MediaButtonReceiver : MediaButtonReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
         super.onReceive(context, intent)
         when (val keyCode = (intent?.extras?.get("android.intent.extra.KEY_EVENT") as KeyEvent).keyCode) {
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                logger("媒体组件点击：PLAY_PAUSE")
+                Media.session?.controller?.transportControls?.pause()
+            }
             KeyEvent.KEYCODE_MEDIA_PLAY -> {
                 logger("媒体组件点击：PLAY")
-                if (Media.session?.controller?.playbackState?.state == PlaybackStateCompat.STATE_PLAYING) {
-                    Media.session?.controller?.transportControls?.pause()
-                    logger("播放pause")
-                } else {
-                    Media.session?.controller?.transportControls?.play()
-                    logger("播放play")
-                }
+                Media.session?.controller?.transportControls?.play()
             }
             KeyEvent.KEYCODE_MEDIA_NEXT -> {
                 logger("媒体组件点击：NEXT")
