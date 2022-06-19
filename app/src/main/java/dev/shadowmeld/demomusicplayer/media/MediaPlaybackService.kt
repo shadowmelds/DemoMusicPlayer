@@ -62,6 +62,7 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
         initMediaSession()
         // 初始化 ExoPlayer
         exoPlayer = ExoPlayer.Builder(baseContext).build()
+        exoPlayer.repeatMode = ExoPlayer.REPEAT_MODE_ALL
         // 给ExoPlayer添加监听
         initExoPlayerListener(exoPlayer)
     }
@@ -90,6 +91,10 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
             setCallback(MediaSessionCallback())
             controller?.registerCallback(object : MediaControllerCompat.Callback() {
                 override fun onPlaybackStateChanged(state: PlaybackStateCompat?) {
+
+                    Media.currentMediaState = state?.state
+                    logger("Service播放状态改变：${state?.state}， ${Media.currentMediaState == PlaybackStateCompat.STATE_PLAYING}")
+
                     logger("state = ${state?.state}")
                     if (state?.state == PlaybackStateCompat.STATE_PLAYING || state?.state == PlaybackStateCompat.STATE_PAUSED || state?.state == PlaybackStateCompat.STATE_NONE) {
                         logger("启动通知")
@@ -97,8 +102,6 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
                         startForeground(1, createNotification(baseContext, NOTIFICATION_CHANNEL_ID))
                     }
 
-                    logger("Service播放状态改变：${state?.state}")
-                    Media.currentMediaState = state?.state
                 }
 
 
@@ -181,19 +184,26 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
 
             )
             addAction(
-                NotificationCompat.Action(
-                    if (Media.currentMediaState == PlaybackStateCompat.STATE_PLAYING) R.drawable.ic_baseline_pause_24
-                    else R.drawable.ic_baseline_play_arrow_24,
-                    if (Media.currentMediaState == PlaybackStateCompat.STATE_PLAYING) "Pause" else "Play",
-                    if (Media.currentMediaState == PlaybackStateCompat.STATE_PLAYING) MediaButtonReceiver.buildMediaButtonPendingIntent(
-                        context,
-                        PlaybackStateCompat.ACTION_PLAY_PAUSE
+                if (Media.currentMediaState == PlaybackStateCompat.STATE_PLAYING) {
+                    NotificationCompat.Action(
+                        R.drawable.ic_baseline_pause_24,
+                        "Pause",
+                        MediaButtonReceiver.buildMediaButtonPendingIntent(
+                            context,
+                            PlaybackStateCompat.ACTION_PLAY_PAUSE
+                        )
                     )
-                    else MediaButtonReceiver.buildMediaButtonPendingIntent(
-                        context,
-                        PlaybackStateCompat.ACTION_PLAY,
+                } else {
+                    NotificationCompat.Action(
+                        R.drawable.ic_baseline_play_arrow_24,
+                        "Play",
+                        MediaButtonReceiver.buildMediaButtonPendingIntent(
+                            context,
+                            PlaybackStateCompat.ACTION_PLAY,
+                        )
                     )
-                )
+                }
+
             )
             addAction(
                 NotificationCompat.Action(

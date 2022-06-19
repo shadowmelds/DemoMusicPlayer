@@ -259,7 +259,13 @@ private fun MainScreen(
                             start.linkTo(parent.start)
                             end.linkTo(parent.end)
                         }) {
-                    Icon(painterResource(R.drawable.ic_round_play_arrow), contentDescription = "喜欢")
+                    Icon(painterResource(
+                        if (Media.currentMediaState == PlaybackStateCompat.STATE_PLAYING) {
+                            R.drawable.ic_baseline_pause_24
+                        } else {
+                            R.drawable.ic_baseline_play_arrow_24
+                        }
+                    ), contentDescription = "喜欢")
                 }
 
                 IconButton(
