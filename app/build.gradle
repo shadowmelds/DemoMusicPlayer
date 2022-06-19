@@ -100,6 +100,8 @@ dependencies {
 
     // ExoPlayer
     implementation 'com.google.android.exoplayer:exoplayer:2.17.1'
+    // 一个MediaSession与Player的连接器，这个项目不打算使用它
+//    implementation 'com.google.android.exoplayer:extension-mediasession:2.17.1'
 
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.3'

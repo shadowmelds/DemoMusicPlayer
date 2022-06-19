@@ -6,9 +6,12 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.ResultReceiver
 import android.support.v4.media.MediaBrowserCompat
+import android.support.v4.media.MediaDescriptionCompat
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.MediaSessionCompat
@@ -18,10 +21,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.media.MediaBrowserServiceCompat
 import androidx.media.session.MediaButtonReceiver
-import com.google.android.exoplayer2.ExoPlayer
-import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.PlaybackException
-import com.google.android.exoplayer2.Player
+import com.google.android.exoplayer2.*
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
 import com.google.android.exoplayer2.upstream.RawResourceDataSource
 import com.google.android.exoplayer2.util.EventLogger
@@ -29,6 +29,11 @@ import dev.shadowmeld.demomusicplayer.R
 import dev.shadowmeld.demomusicplayer.data.DefaultMusicInfoRepository
 import dev.shadowmeld.demomusicplayer.data.MusicRepository
 import dev.shadowmeld.demomusicplayer.util.logger
+import kotlinx.coroutines.*
+import android.R.color
+
+
+
 
 
 class MediaPlaybackService : MediaBrowserServiceCompat() {
@@ -40,31 +45,31 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
         const val ACTION_FAVORITE: Long = 1 shl 111
     }
 
-    /**
-     * EXO播放器
-     */
-    private lateinit var exoPlayer: ExoPlayer
 
-    /**
-     * 数据源
-     */
-    private lateinit var musicInfoRepository: MusicRepository
+    var job: Job? = null
+
 
     override fun onCreate() {
         super.onCreate()
 
         // 获取播放列表
-        musicInfoRepository = DefaultMusicInfoRepository(this)
-        musicInfoRepository.getMusicInfo()
-        Media.playList = musicInfoRepository.observerResult.value
+        Media.musicInfoRepository = DefaultMusicInfoRepository(this)
+        Media.musicInfoRepository.getMusicInfo()
+        Media.playList = Media.musicInfoRepository.observerResult.value
 
         // 初始化 MediaSession
+        Media.initExoPlayer(baseContext)
         initMediaSession()
         // 初始化 ExoPlayer
-        exoPlayer = ExoPlayer.Builder(baseContext).build()
-        exoPlayer.repeatMode = ExoPlayer.REPEAT_MODE_ALL
         // 给ExoPlayer添加监听
-        initExoPlayerListener(exoPlayer)
+        initExoPlayerListener(Media.exoPlayer)
+
+        Media.session.isActive = true
+//        job = GlobalScope.launch {
+//            Media.updatePosition(exoPlayer)
+//
+//            delay(1000)
+//        }
     }
 
     /**
@@ -78,16 +83,17 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
             setFlags(MediaSessionCompat.FLAG_HANDLES_QUEUE_COMMANDS)
 
             setPlaybackState(
-                PlaybackStateCompat.Builder().setActions(PlaybackStateCompat.ACTION_PLAY or
+                PlaybackStateCompat.Builder().setActions(
+                        PlaybackStateCompat.ACTION_SEEK_TO or
+                        PlaybackStateCompat.ACTION_PLAY or
+                        PlaybackStateCompat.ACTION_PAUSE or
                         PlaybackStateCompat.ACTION_PLAY_PAUSE or
                         PlaybackStateCompat.ACTION_STOP or
                         PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID or
                         PlaybackStateCompat.ACTION_PLAY_FROM_SEARCH or
                         PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
-                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
-                        PlaybackStateCompat.ACTION_SEEK_TO).build()
+                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT).build()
             )
-
             setCallback(MediaSessionCallback())
             controller?.registerCallback(object : MediaControllerCompat.Callback() {
                 override fun onPlaybackStateChanged(state: PlaybackStateCompat?) {
@@ -104,7 +110,6 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
 
                 }
 
-
             })
             setSessionToken(sessionToken)
         }
@@ -118,6 +123,8 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
         return BrowserRoot(getString(R.string.app_name), null)
     }
 
+    val mediaItems = mutableListOf<MediaBrowserCompat.MediaItem>()
+
     override fun onLoadChildren(
         parentId: String,
         result: Result<List<MediaBrowserCompat.MediaItem>>
@@ -128,7 +135,6 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
             logger("不允许浏览")
             return
         }
-        val mediaItems = mutableListOf<MediaBrowserCompat.MediaItem>()
 
         Media.playList?.let {
             for (musicEntity in it.entries) {
@@ -140,7 +146,7 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
                         MediaBrowserCompat.MediaItem.FLAG_BROWSABLE
                     )
                 )
-                exoPlayer.addMediaItem(MediaItem.fromUri(RawResourceDataSource.buildRawResourceUri(musicEntity.value.source)))
+                Media.exoPlayer.addMediaItem(MediaItem.fromUri(RawResourceDataSource.buildRawResourceUri(musicEntity.value.source)))
             }
             logger("走到这一步 ${mediaItems.size}")
         }
@@ -159,7 +165,7 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
 
         createNotificationChannel(channelId, "Daydream Player")
 
-        val controller = Media.session!!.controller
+        val controller = Media.session.controller
         val mediaMetadata = controller.metadata
         val description = mediaMetadata.description
 
@@ -168,9 +174,9 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
             setContentText(description?.subtitle)
             setSubText(description?.description)
             setLargeIcon(description?.iconBitmap)
-            setContentIntent(Media.session?.controller?.sessionActivity)
+            setContentIntent(Media.session.controller?.sessionActivity)
             setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            setSmallIcon(R.drawable.ic_launcher_foreground)
+            setSmallIcon(R.drawable.ic_round_play_arrow)
             color = Color.BLACK
             addAction(
                 NotificationCompat.Action(
@@ -227,16 +233,11 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
             )
             setStyle(
                 androidx.media.app.NotificationCompat.MediaStyle()
-                    .setMediaSession(Media.session?.sessionToken)
+                    .setMediaSession(Media.session.sessionToken)
                     .setShowActionsInCompactView(0, 1, 2)
-                    .setShowCancelButton(true)
-                    .setCancelButtonIntent(
-                        MediaButtonReceiver.buildMediaButtonPendingIntent(
-                            context,
-                            PlaybackStateCompat.ACTION_STOP
-                        )
-                    )
             )
+
+            color = Color.BLACK
         }.build()
     }
 
@@ -282,6 +283,7 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
                     Player.STATE_ENDED -> PlaybackStateCompat.STATE_STOPPED
                     else -> PlaybackStateCompat.STATE_NONE
                 }
+
                 //播放器的状态变化，通过mediasession告诉在ui业务层注册的MediaControllerCompat.Callback进行回调
                 setPlaybackState(playbackState)
             }
@@ -305,10 +307,10 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
     }
 
     private fun setPlaybackState(playbackState: Int) {
-        val speed = exoPlayer.playbackParameters.speed
-        Media.session!!.setPlaybackState(
+        val speed = Media.exoPlayer.playbackParameters.speed
+        Media.session.setPlaybackState(
             PlaybackStateCompat.Builder()
-                .setState(playbackState, exoPlayer.currentPosition, speed).build()
+                .setState(playbackState, Media.exoPlayer.currentPosition, speed).setActions(PlaybackStateCompat.ACTION_SEEK_TO).build()
         )
     }
 
@@ -317,33 +319,33 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
         override fun onPlay() {
             logger("MediaSessionCallback Play() 执行")
             super.onPlay()
-            exoPlayer.play()
-            exoPlayer.prepare()
+            Media.exoPlayer.play()
+            Media.exoPlayer.prepare()
             //资源加载后立即播放
-            exoPlayer.playWhenReady = true
+            Media.exoPlayer.playWhenReady = true
         }
 
         override fun onSkipToNext() {
             super.onSkipToNext()
             logger("下一曲")
-            exoPlayer.seekToNextMediaItem()
+            Media.exoPlayer.seekToNextMediaItem()
         }
 
         override fun onSkipToPrevious() {
             super.onSkipToPrevious()
             logger("上一曲")
-            exoPlayer.seekToPreviousMediaItem()
+            Media.exoPlayer.seekToPreviousMediaItem()
         }
 
         override fun onPause() {
             super.onPause()
-            exoPlayer.pause()
+            Media.exoPlayer.pause()
             logger("onPause ${Media.currentMediaState == PlaybackStateCompat.STATE_PLAYING}")
         }
 
         override fun onSeekTo(pos: Long) {
             super.onSeekTo(pos)
-            exoPlayer.seekTo(pos)
+            Media.exoPlayer.seekTo(pos)
         }
     }
 
@@ -363,4 +365,8 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
             .build()
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        job?.cancel()
+    }
 }
