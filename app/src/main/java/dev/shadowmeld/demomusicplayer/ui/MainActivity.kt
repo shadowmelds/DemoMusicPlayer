@@ -11,13 +11,11 @@ import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import androidx.activity.viewModels
 import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.runtime.mutableStateOf
 import dev.shadowmeld.demomusicplayer.databinding.ActivityMainBinding
-import dev.shadowmeld.demomusicplayer.util.logger
+import dev.shadowmeld.demomusicplayer.util.log
 import dev.shadowmeld.demomusicplayer.media.MediaPlaybackService
 import com.google.android.material.composethemeadapter.MdcTheme
-import dev.shadowmeld.demomusicplayer.media.Media
-import dev.shadowmeld.demomusicplayer.media.MediaItemData
+import dev.shadowmeld.demomusicplayer.media.DefaultMediaController
 
 @ExperimentalMaterialApi
 class MainActivity : AppCompatActivity() {
@@ -42,8 +40,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         override fun onPlaybackStateChanged(state: PlaybackStateCompat?) {
-            logger("Activity播放状态改变：${state?.state}")
-            Media.currentMediaState = state?.state
+            log("Activity播放状态改变：${state?.state}")
+            DefaultMediaController.currentMediaState = state?.state ?: PlaybackStateCompat.STATE_NONE
         }
     }
 
@@ -88,11 +86,11 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 override fun onConnectionSuspended() {
-                    logger("MusicService 连接挂起")
+                    log("MusicService 连接挂起")
                 }
 
                 override fun onConnectionFailed() {
-                    logger("MusicService 连接失败")
+                    log("MusicService 连接失败")
                 }
             },
             null // optional Bundle
@@ -140,10 +138,10 @@ class MainActivity : AppCompatActivity() {
 
                     if (mediaController.playbackState.state == PlaybackStateCompat.STATE_PLAYING) {
                         mediaController.transportControls.pause()
-                        logger("播放pause")
+                        log("播放pause")
                     } else {
                         mediaController.transportControls.play()
-                        logger("播放play")
+                        log("播放play")
                     }
                 }
 
@@ -169,8 +167,8 @@ class MainActivity : AppCompatActivity() {
      * 更新显示媒体信息
      */
     private fun updateShowMediaInfo(description: MediaDescriptionCompat) {
-        logger("更新显示媒体信息")
-        Media.currentMediaInfo = Media.playList?.get(description.mediaId)
+        log("更新显示媒体信息")
+//        DefaultMediaController.currentSongInfo = DefaultMediaController.playList?.get(description.)
     }
 
 

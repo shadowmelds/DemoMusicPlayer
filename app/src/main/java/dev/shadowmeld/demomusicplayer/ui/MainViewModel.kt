@@ -23,7 +23,7 @@ class MainViewModel : ViewModel() {
         this.playbackAction = playbackAction
     }
 
-    fun getMusicInfo(): Map<String, MediaItemData>? {
+    fun getMusicInfo(): MutableList<MediaItemData>? {
         musicInfoRepository.getMusicInfo()
         return musicInfoRepository.observerResult.value
     }

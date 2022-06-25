@@ -13,28 +13,27 @@ interface MusicRepository {
 
     fun getMusicInfo()
 
-    val observerResult: MutableLiveData<Map<String, MediaItemData>>
+    val observerResult: MutableLiveData<MutableList<MediaItemData>>
 }
 
 class DefaultMusicInfoRepository(
     private val context: Context?
 ) : MusicRepository {
 
-    private val result: MutableLiveData<Map<String, MediaItemData>> by lazy {
-        MutableLiveData<Map<String, MediaItemData>>()
+    private val result: MutableLiveData<MutableList<MediaItemData>> by lazy {
+        MutableLiveData<MutableList<MediaItemData>>()
     }
 
     override fun getMusicInfo() {
 
-        result.value = mutableMapOf<String, MediaItemData>().apply {
-
-            context?.let { put(R.raw.a1.toString(), musicInfo(it, Uri.parse("android.resource://"+ it.packageName +"/raw/a1"), R.raw.a1))}
-            context?.let { put(R.raw.a2.toString(), musicInfo(it, Uri.parse("android.resource://"+ it.packageName +"/raw/a2"), R.raw.a2))}
-            context?.let { put(R.raw.a3.toString(), musicInfo(it, Uri.parse("android.resource://"+ it.packageName +"/raw/a3"), R.raw.a3))}
+        result.value = mutableListOf<MediaItemData>().apply {
+            context?.let {add(musicInfo(it, Uri.parse("android.resource://"+ it.packageName +"/raw/a1"), R.raw.a1))}
+            context?.let {add(musicInfo(it, Uri.parse("android.resource://"+ it.packageName +"/raw/a2"), R.raw.a2))}
+            context?.let {add(musicInfo(it, Uri.parse("android.resource://"+ it.packageName +"/raw/a3"), R.raw.a3))}
         }
     }
 
-    override val observerResult: MutableLiveData<Map<String, MediaItemData>>
+    override val observerResult: MutableLiveData<MutableList<MediaItemData>>
         get() = result
 
     private fun musicInfo(context: Context, media: Uri, resource: Int): MediaItemData {

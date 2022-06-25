@@ -1,6 +1,5 @@
 package dev.shadowmeld.demomusicplayer.ui
 
-import android.graphics.Bitmap
 import android.support.v4.media.session.PlaybackStateCompat
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -8,8 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
@@ -35,10 +32,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberImagePainter
 import dev.shadowmeld.demomusicplayer.R
-import dev.shadowmeld.demomusicplayer.util.logger
 import com.google.accompanist.glide.rememberGlidePainter
-import dev.shadowmeld.demomusicplayer.media.Media
+import dev.shadowmeld.demomusicplayer.media.DefaultMediaController
 import dev.shadowmeld.demomusicplayer.media.MediaItemData
+import dev.shadowmeld.demomusicplayer.util.log
 import dev.shadowmeld.viewdaydream.ui.now_player.SliderWithLabel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -144,7 +141,7 @@ private fun MainScreen(
                 elevation = 16.dp
             ) {
                 Image(
-                    painter = rememberGlidePainter(R.mipmap.ic_launcher),
+                    painter = rememberGlidePainter(DefaultMediaController.currentSongInfo?.image ?: R.mipmap.ic_launcher),
                     contentDescription = "Contact profile picture",
                     contentScale = ContentScale.FillWidth,
                     modifier = Modifier.aspectRatio(1f)
@@ -168,11 +165,11 @@ private fun MainScreen(
                         }
                 ) {
                     Text(
-                        text = Media.currentMediaInfo?.title ?: "Music Name",
+                        text = DefaultMediaController.currentSongInfo?.title ?: "Music Name",
                         style = MaterialTheme.typography.h6
                     )
                     Text(
-                        text = Media.currentMediaInfo?.artist ?: "Music Artist",
+                        text = DefaultMediaController.currentSongInfo?.artist ?: "Music Artist",
                         style = MaterialTheme.typography.body2
                     )
                 }
@@ -250,7 +247,7 @@ private fun MainScreen(
 
                 IconButton(
                     onClick = {
-                        logger("viewModel == ${viewModel == null} | playButton == ${viewModel?.playbackAction == null}")
+                        log("viewModel == ${viewModel == null} | playButton == ${viewModel?.playbackAction == null}")
 
                         viewModel?.playbackAction?.invoke(PlaybackStateCompat.ACTION_PLAY)
                     },
@@ -260,7 +257,7 @@ private fun MainScreen(
                             end.linkTo(parent.end)
                         }) {
                     Icon(painterResource(
-                        if (Media.currentMediaState == PlaybackStateCompat.STATE_PLAYING) {
+                        if (DefaultMediaController.currentMediaState == PlaybackStateCompat.STATE_PLAYING) {
                             R.drawable.ic_baseline_pause_24
                         } else {
                             R.drawable.ic_baseline_play_arrow_24
@@ -375,10 +372,10 @@ fun BottomSheetContent(
         ) {
             // Add a single item
             item {
-                for ((index, musicEntity) in it.entries.withIndex()) {
+                for ((index, musicEntity) in it.withIndex()) {
                     BottomSheetListItem(
                         position = index.toString(),
-                        musicInfo = musicEntity.value,
+                        musicInfo = musicEntity,
                         onItemClick = { title ->
 
                             scope.launch {
@@ -391,9 +388,7 @@ fun BottomSheetContent(
                             ).show()
                         })
                 }
-                }
-
-
+            }
         }
     }
 
